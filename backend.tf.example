@@ -1,0 +1,8 @@
+terraform {
+    backend "azurerm" {
+    resource_group_name = "replace-with-your-resource-group-name"
+    storage_account_name = "replace-with-your-storage-account-name"
+    container_name = "replace-with-your-blob-container-name"
+    key = "tf.tfstate"
+  }
+}
