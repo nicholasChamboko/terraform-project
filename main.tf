@@ -78,6 +78,7 @@ resource "azurerm_network_interface" "nic02" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet02.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.pip01.id
   }
 }
 
@@ -147,4 +148,39 @@ resource "azurerm_virtual_network_peering" "vnet02-to-vnet01" {
   resource_group_name       = azurerm_resource_group.rg.name
   virtual_network_name      = azurerm_virtual_network.vnet02.name
   remote_virtual_network_id = azurerm_virtual_network.vnet01.id
+}
+
+# Creating public IP for VM01
+resource "azurerm_public_ip" "pip01" {
+  name                = "pip01"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Dynamic"
+}
+
+# Creating Network Security Group
+resource "azurerm_network_security_group" "nsg01" {
+  name                = "nsg01"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name 
+
+
+  security_rule = {
+    name                       = "RDP"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3389"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+
+# Connect the network security group to the network interface card of VM01
+resource "azurerm_network_interface_security_group_association" "nsg-to-nic01" {
+  network_interface_id      = azurerm_network_interface.nic01.id
+  network_security_group_id = azurerm_network_security_group.nsg01.id
 }
