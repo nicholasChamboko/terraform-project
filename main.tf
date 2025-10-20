@@ -1,70 +1,55 @@
-
-# The constraint "~>4.0" allows non-breaking updates within major version 4.x.
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~>4.0"
-    }
-  }
-  required_version = ">=1.3.0"
-}
-
-provider "azurerm" {
-  features {}
-  subscription_id = "a48c9a50-8801-41f0-b455-f7394885ad34"
-}
-
 # Crearing resource group
 resource "azurerm_resource_group" "rg" {
-  name     = "rg-vnet-peering"
-  location = "South Africa North"
+  name     = "${var.resource_group_name}-resources"
+  location = var.location[2]
 }
 
 # Creating first virtual network
 resource "azurerm_virtual_network" "vnet01" {
   name                = "vnet01"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  address_space       = ["10.0.0.0/16"]
+  resource_group_name = var.resource_group_name
+  address_space       = [element(var.address_space,0)/element(var.address_space,5)] #["10.0.0.0/16"]
+
+  tags = local.common_tags #Used the local variable common_tags
 }
 
 # Creating the Second Virtual Network
 resource "azurerm_virtual_network" "vnet02" {
   name                = "vnet02"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  address_space       = ["10.1.0.0/16"]
+  resource_group_name = var.resource_group_name
+  address_space       = [element(var.address_space,1)/element(var.address_space,5)]#["10.1.0.0/16"]
 }
 
 
 # Creating the subnet for Vnet01
 resource "azurerm_subnet" "subnet01" {
   name                 = "subnet01"
-  resource_group_name  = azurerm_resource_group.rg.name
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet01.name
-  address_prefixes     = ["10.0.1.0/24"]
+  address_prefixes     = [element(var.address_space, 2)/element(var.address_space,4)] #["10.0.1.0/24"]
 }
 
 # Creating the subnet for Vnet02
 resource "azurerm_subnet" "subnet02" {
   name                 = "subnet02"
-  resource_group_name  = azurerm_resource_group.rg.name
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet02.name
-  address_prefixes     = ["10.1.1.0/24"]
+  address_prefixes     = [element(var.address_space,3)/element(var.address_space, 4)]#["10.1.1.0/24"]
 }
 
 # Creating Network Interface Card for VM01
 resource "azurerm_network_interface" "nic01" {
   name                = "nic01"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
   ip_configuration {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet01.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.pip01.id
+    public_ip_address_id          = azurerm_public_ip.pip01.id
   }
 }
 
@@ -72,7 +57,7 @@ resource "azurerm_network_interface" "nic01" {
 resource "azurerm_network_interface" "nic02" {
   name                = "nic02"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
   ip_configuration {
     name                          = "internal"
@@ -85,7 +70,7 @@ resource "azurerm_network_interface" "nic02" {
 # Creating the first Virtual Machine in Vnet01
 resource "azurerm_windows_virtual_machine" "vm01" {
   name                = "vm01"
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   location            = azurerm_resource_group.rg.location
   network_interface_ids = [
     azurerm_network_interface.nic01.id,
@@ -95,10 +80,11 @@ resource "azurerm_windows_virtual_machine" "vm01" {
   admin_password = "Kupakwashe1994!@#"
 
   os_disk {
+    name = "myosdisk01"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
-
+  
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
@@ -106,12 +92,13 @@ resource "azurerm_windows_virtual_machine" "vm01" {
     version   = "latest"
   }
 
+
 }
 
 # Creating the Second Virtual Machine in Vnet02
 resource "azurerm_windows_virtual_machine" "vm02" {
   name                = "vm02"
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   location            = azurerm_resource_group.rg.location
   network_interface_ids = [
     azurerm_network_interface.nic02.id,
@@ -137,7 +124,7 @@ resource "azurerm_windows_virtual_machine" "vm02" {
 # Creating Vnet Peering from Vnet01 to Vnet02
 resource "azurerm_virtual_network_peering" "vnet01-to-vnet02" {
   name                      = "vnet01-to-vnet02"
-  resource_group_name       = azurerm_resource_group.rg.name
+  resource_group_name       = var.resource_group_name
   virtual_network_name      = azurerm_virtual_network.vnet01.name
   remote_virtual_network_id = azurerm_virtual_network.vnet02.id
 }
@@ -145,7 +132,7 @@ resource "azurerm_virtual_network_peering" "vnet01-to-vnet02" {
 # Creating Vnet Peering from Vnet02 to Vnet01
 resource "azurerm_virtual_network_peering" "vnet02-to-vnet01" {
   name                      = "vnet02-to-vnet01"
-  resource_group_name       = azurerm_resource_group.rg.name
+  resource_group_name       = var.resource_group_name
   virtual_network_name      = azurerm_virtual_network.vnet02.name
   remote_virtual_network_id = azurerm_virtual_network.vnet01.id
 }
@@ -154,7 +141,7 @@ resource "azurerm_virtual_network_peering" "vnet02-to-vnet01" {
 resource "azurerm_public_ip" "pip01" {
   name                = "pip01"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   allocation_method   = "Static"
 }
 
@@ -162,7 +149,7 @@ resource "azurerm_public_ip" "pip01" {
 resource "azurerm_network_security_group" "nsg01" {
   name                = "nsg01"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
 
   security_rule {
@@ -190,7 +177,7 @@ resource "azurerm_network_interface_security_group_association" "nsg-to-nic01" {
 resource "azurerm_public_ip" "pip02" {
   name                = "pip02"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   allocation_method   = "Static"
 }
 
@@ -198,7 +185,7 @@ resource "azurerm_public_ip" "pip02" {
 resource "azurerm_network_security_group" "nsg02" {
   name                = "nsg02"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
 
   security_rule {
